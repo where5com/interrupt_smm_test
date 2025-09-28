@@ -9,8 +9,8 @@
 ## 2.  dosbox 
 - https://dosbox-x.com/ 
 
-
-
-```dos
+```bash
     debugvox <proc.exe>
 ```
+## 3. vscode extension
+- ykkz000.nasm-x86-assembly-language
