@@ -14,3 +14,6 @@
 ```
 ## 3. vscode extension
 - ykkz000.nasm-x86-assembly-language
+
+## 4. int 21
+- https://stanislavs.org/helppc/int_21.html?utm_source=chatgpt.com

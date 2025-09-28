@@ -9,13 +9,8 @@ org 100h
 start:
 
     call change_08h_isr
-    mov dx, str_cs_ip
-    call print
-    mov dx, int08_cs
-    call print
-    mov dx, int08_ip
-    call print
- 	call newline
+    call print_int08_cs_ip
+
 
 
     ; print info
@@ -98,8 +93,8 @@ change_08h_isr:
 
     mov [int08_cs], cx
     mov [int08_ip], dx
-
     pop es
+
     ret
 
 ; --- helpers ---
@@ -119,25 +114,91 @@ crlf:
     int 21h  
     ret
 
+; print int 0x08 CS:IP
+print_int08_cs_ip:
+    mov dx, str_cs_ip
+    call print
+
+    mov dx, int08_cs
+    call print_hex16
+
+    mov dl, ':'     ; 要印的字元
+    mov ah, 2       ; 功能號：輸出字元
+    int 21h
+
+    mov dx, int08_ip
+    call print_hex16
+ 	call newline
+
+    ret
+    
 ; print AL as "0xNN"
 print_hex8:
     push ax
     push dx
-    mov dx, hex
-    mov [hex+2], byte '0'
-    mov [hex+3], byte '0'
+    mov dx, hex8
+    mov [hex8+2], byte '0'
+    mov [hex8+3], byte '0'
     mov ah, al
     mov al, ah
     shr al, 4
     call nib
-    mov [hex+2], al
+    mov [hex8+2], al
     mov al, ah
     and al, 0x0F
     call nib
-    mov [hex+3], al
+    mov [hex8+3], al
     mov ah, 9
     int 21h
     pop dx
+    pop ax
+    ret
+
+; print [dx] as "0xNNNN"
+print_hex16:
+    push ax
+    push bx
+    push dx
+    push si
+
+    mov si,dx 
+    mov bx, [si]
+    mov [hex16], word 0  
+    mov [hex16+2], word 0  
+
+
+    ; nib 1
+    mov al,bh
+    shr al,4
+    call nib
+    mov [hex16], al
+    
+    ; nib 2
+    mov al,bh
+    and al, 0x0f
+    call nib
+    mov [hex16+1], al
+    
+    ; nib 3
+    mov al,bl
+    shr al,4
+    call nib
+    mov [hex16+2], al
+    
+    ; nib 4
+    mov al,bl
+    and al, 0x0f
+    call nib
+    mov [hex16+3], al
+
+
+
+    mov dx, hex16
+    mov ah, 9
+    int 21h
+    pop si
+    pop dx
+    pop bx
     pop ax
     ret
 
@@ -179,9 +240,10 @@ msg_temp  db 'IMR/IRR/ISR = ', '$'
 str_imr db 'M8259 IMR = ', '$'
 str_irr db 'M8259 IRR = ', '$'
 str_isr db 'M8259 ISR = ', '$'
-hex  db '0x00', '$'
+hex8  db '0x00', '$'
+hex16  db '0000', '$'
 imr db 0
 irr db 0
 isr db 0
-int08_cs db 0
-int08_ip db 0
+int08_cs dw 0
+int08_ip dw 0
