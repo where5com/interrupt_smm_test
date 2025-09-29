@@ -17,17 +17,21 @@ org 100h
 start:
 
     cli
+    call mask_irq0
     call read_pit
     call set_pit
     call install_08h_isr
+    call unmask_irq0
     sti
     int 0x08
 
     cli
+    call mask_irq0
     call uninstall_08h_isr
     call reset_smm
     call cpu_info
     call summary
+    call unmask_irq0
     sti
     ret
 
@@ -257,6 +261,7 @@ cpu_info:
 
 test_isr:
     cli
+    call mask_irq0
     push eax
     push ebx
     push ecx
@@ -296,7 +301,7 @@ test_isr:
 
  
     call set_smm
-    call .EOI
+    ; call .EOI
     jmp .done
 
 .from_ext2:
@@ -305,11 +310,6 @@ test_isr:
 
 
 .skip_isr:
-    ; mask IRQ0
-    in al, PIC1_DAT
-    or al, 0x1
-    out PIC1_DAT, al
-
     mov dx , msg_skip_isr
     call print
     call newline
@@ -335,6 +335,7 @@ test_isr:
 
     cmp byte [sti_flag], 0
     je .passed
+    call unmask_irq0
     sti     
 
 .passed:
@@ -355,6 +356,7 @@ test_isr:
     mov dx, msg_isr_end
     call print
  	call newline
+    call unmask_irq0
     call .EOI
     pop edx
     pop ecx
@@ -378,6 +380,33 @@ test_isr:
 
     ret
 
+mask_irq0:
+    push ax
+    push dx
+    ; mask IRQ0
+    in al, PIC1_DAT
+    or al, 0x1
+    out PIC1_DAT, al
+
+    mov dx, msg_ir0_masked
+    call print
+    call newline 
+    pop dx
+    pop ax
+    ret
+unmask_irq0:
+    push ax
+    push dx
+    mov dx, msg_ir0_unmasked
+    call print
+    call newline 
+    ; unmask IRQ0
+    in al, PIC1_DAT
+    and al, 0xfe
+    out PIC1_DAT, al
+    pop dx
+    pop ax
+    ret
 
 set_smm:
     mov al,SMM_FLAG
@@ -385,22 +414,23 @@ set_smm:
     jne .next
     ret
 .next:
+    mov dx, msg_set_smm
+    call print
+    call newline
     call read_pic
-
+    mov dx, str_dash_line
+    call print
+    call newline
     ; mask IRQ0
     ; in al, PIC1_DAT
     ; or al, 0x1
     ; out PIC1_DAT, al
-
 
     ; OCW3：bit3=1 表示這是 OCW3
     ; ESMM=1 且 SMM=1 → 進入 SMM
     mov  al, 0x68      ; 0b0110_1000 = ESMM=1,SMM=1,bit3=1
     out  PIC1_CMD, al
     
-    mov dx, msg_set_smm
-    call print
-    call newline
     ret
 
 reset_smm:
@@ -758,3 +788,7 @@ regEAX  db 'EAX=', '$'
 regEBX  db ' EBX=', '$'
 regECX  db ' ECX=', '$'
 regEDX  db ' EDX=', '$'
+str_dash_line db '------------------', '$'
+
+msg_ir0_masked      db '@ irq0 is masked', '$'
+msg_ir0_unmasked    db '@ irq0 is unmasked', '$'
