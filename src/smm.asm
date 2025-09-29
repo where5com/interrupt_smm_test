@@ -8,6 +8,8 @@ org 100h
 %define PIC1_DAT  0x21
 %define PIT_CH0   0x40
 %define PIT_CMD   0x43
+%define SMM_FLAG  0x0
+%define SFNM_FLAG 0x0
 start:
     mov eax,0
     cpuid
@@ -205,6 +207,10 @@ test_isr:
     cmp byte [int_cnt], 0x2
     je .from_ext2
 
+
+    cmp byte [int_cnt], 0x10
+    je .skip_isr
+
     jmp .no_source
 
 .from_soft:
@@ -216,11 +222,6 @@ test_isr:
     mov byte [sti_flag], 1
 
     call set_smm
-
-    ; specific EOI 給 IRQ0：OCW2 = 0x60 | IRQ#
-    ; mov  al, 0x60      ; IRQ#=0 → 0x60
-    ; out  PIC1_CMD, al
-
     jmp .done
 
 .from_ext2:
@@ -229,6 +230,12 @@ test_isr:
 
 .no_source:
     ; ... 都沒觸發時的處理（可省略） ...
+
+.skip_isr:
+    mov dx , msg_skip_isr
+    call print
+    call newline
+    jmp .skip
 
 .done:
     add byte [int_cnt], 1
@@ -251,7 +258,7 @@ test_isr:
     sti     
 
 .passed:
-    mov cx, 0x00ff
+    mov cx, 0x003f
     call .delay
 
 
@@ -261,9 +268,14 @@ test_isr:
     call print_hex8
     call newline
 
+
+ .skip   
+    call read_pic
+
     mov dx, msg_isr_end
     call print
  	call newline
+    call .EOI
     sti
     iret
 
@@ -275,12 +287,17 @@ test_isr:
     sti
     loop .delay
     ret
+.EOI:
+    ; specific EOI 給 IRQ0：OCW2 = 0x60 | IRQ#
+    mov  al, 0x60      ; IRQ#=0 → 0x60
+    out  PIC1_CMD, al
 
+    ret
 
 
 set_smm:
-    
-    cmp byte [smm_flag], 0x0
+    mov al,SMM_FLAG
+    cmp al, 0x0
     jne .next
     ret
 .next:
@@ -588,12 +605,12 @@ int08_ip dw 0
 
 int_cnt     db 0
 sti_flag    db 0
-smm_flag    db 0
-sfnm_flag   db 0
 
 msg_set_smm   db '-- smm is set   --', '$'
 msg_reset_smm db '-- smm is reset --', '$'
-msg_int_cnt db 'inter count : ', '$'
+msg_int_cnt db 'INT count : ', '$'
 msg_int_cntf db 'id: 0x00, count : 0000', '$'
 
 msg_soft_int    db 'soft_int    : ' , '$'
+
+msg_skip_isr   db 'too many times for test_isr, skipping isr....', '$'
