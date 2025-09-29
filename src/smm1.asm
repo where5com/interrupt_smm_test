@@ -4,8 +4,10 @@
 bits 16
 org 100h
 
-%define PIC1_CMD  0x20
-%define PIC1_DAT  0x21
+%define PIC0_CMD  0x20
+%define PIC0_DAT  0x21
+%define PIC1_CMD  0xa0
+%define PIC1_DAT  0xa1
 %define PIT_CH0   0x40
 %define PIT_CMD   0x43
 %define PIT_FREQ  0xffff
@@ -126,8 +128,51 @@ read_pit:
     call newline
     ret
 
+read_pic0:
+    ; IMR
+    mov dx, PIC0_DAT
+    in  al, dx
+    mov [imr], al
 
-read_pic:
+    ; IRR (OCW3=0x0A)
+    mov dx, PIC0_CMD
+    mov al, 0x0A
+    out dx, al
+    in  al, dx
+    mov [irr], al
+
+    ; ISR (OCW3=0x0B)
+    mov al, 0x0B
+    out dx, al
+    in  al, dx
+    mov [isr], al
+
+    ; print "IMR/IRR/ISR = 0x?? 0x?? 0x??"
+    mov dx, str_imr0
+    call print
+
+    mov al, [imr]  
+ 	call print_hex8  
+ 	call newline
+
+    mov dx, str_irr0
+    call print
+
+    mov al, [irr]  
+ 	call print_hex8  
+ 	call newline
+
+    mov dx, str_isr0
+    call print
+
+    mov al, [isr]  
+ 	call print_hex8  
+ 	call newline
+
+
+    ret
+
+read_pic1:
     ; IMR
     mov dx, PIC1_DAT
     in  al, dx
@@ -147,21 +192,21 @@ read_pic:
     mov [isr], al
 
     ; print "IMR/IRR/ISR = 0x?? 0x?? 0x??"
-    mov dx, str_imr
+    mov dx, str_imr1
     call print
 
     mov al, [imr]  
  	call print_hex8  
  	call newline
 
-    mov dx, str_irr
+    mov dx, str_irr1
     call print
 
     mov al, [irr]  
  	call print_hex8  
  	call newline
 
-    mov dx, str_isr
+    mov dx, str_isr1
     call print
 
     mov al, [isr]  
@@ -347,7 +392,8 @@ test_isr:
     call newline
 
 .non_nested:
-    call read_pic
+    call read_pic0
+    call read_pic1
 
     cmp byte [sti_flag], 0
     je .passed
@@ -367,7 +413,8 @@ test_isr:
 
 
  .skip:   
-    call read_pic
+    call read_pic0
+    call read_pic1
 
     mov dx, msg_isr_end
     call print
@@ -393,7 +440,7 @@ test_isr:
 .EOI:
     ; specific EOI 給 IRQ0：OCW2 = 0x60 | IRQ#
     mov  al, 0x60      ; IRQ#=0 → 0x60
-    out  PIC1_CMD, al
+    out  PIC0_CMD, al
 
     ret
 
@@ -401,9 +448,9 @@ mask_irq0:
     push ax
     push dx
     ; mask IRQ0
-    in al, PIC1_DAT
+    in al, PIC0_DAT
     or al, 0x1
-    out PIC1_DAT, al
+    out PIC0_DAT, al
 
     mov dx, msg_ir0_masked
     call print
@@ -418,9 +465,9 @@ unmask_irq0:
     call print
     call newline 
     ; unmask IRQ0
-    in al, PIC1_DAT
+    in al, PIC0_DAT
     and al, 0xfe
-    out PIC1_DAT, al
+    out PIC0_DAT, al
     pop dx
     pop ax
     ret
@@ -434,19 +481,19 @@ set_smm:
     mov dx, msg_set_smm
     call print
     call newline
-    call read_pic
+    call read_pic0
     mov dx, str_dash_line
     call print
     call newline
     ; mask IRQ0
-    ; in al, PIC1_DAT
+    ; in al, PIC0_DAT
     ; or al, 0x1
-    ; out PIC1_DAT, al
+    ; out PIC0_DAT, al
 
     ; OCW3：bit3=1 表示這是 OCW3
     ; ESMM=1 且 SMM=1 → 進入 SMM
     mov  al, 0x68      ; 0b0110_1000 = ESMM=1,SMM=1,bit3=1
-    out  PIC1_CMD, al
+    out  PIC0_CMD, al
     
     ret
 
@@ -458,20 +505,20 @@ reset_smm:
     ret
 .next:
 
-    call read_pic
+    call read_pic0
 
-    in al, PIC1_DAT
+    in al, PIC0_DAT
     and al, 0xfe
-    out PIC1_DAT, al
+    out PIC0_DAT, al
 
     mov  al, 0x48      ; 0b0100_1000
-    out  PIC1_CMD, al
+    out  PIC0_CMD, al
     
     mov dx, msg_reset_smm
     call print
     call newline
     
-    call read_pic
+    call read_pic0
     
     ret
 
@@ -775,9 +822,12 @@ msg_temp  db 'IMR/IRR/ISR = ', '$'
 str_num_of_int db 'int_id : ','$'
 str_count db 'count = ', '$'
 
-str_imr db 'M8259 IMR = ', '$'
-str_irr db 'M8259 IRR = ', '$'
-str_isr db 'M8259 ISR = ', '$'
+str_imr0 db 'M8259 IMR = ', '$'
+str_irr0 db 'M8259 IRR = ', '$'
+str_isr0 db 'M8259 ISR = ', '$'
+str_imr1 db 'S8259 IMR = ', '$'
+str_irr1 db 'S8259 IRR = ', '$'
+str_isr1 db 'S8259 ISR = ', '$'
 hex8  db '0x00', '$'
 hex16  db '0000', '$'
 imr db 0
