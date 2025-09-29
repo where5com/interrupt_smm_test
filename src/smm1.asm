@@ -8,9 +8,9 @@ org 100h
 %define PIC1_DAT  0x21
 %define PIT_CH0   0x40
 %define PIT_CMD   0x43
-%define PIT_FREQ  0x00ff
+%define PIT_FREQ  0xffff
 %define INT_LIMIT 0x5
-%define SMM_FLAG  0x0
+%define SMM_FLAG  0x1
 %define SFNM_FLAG 0x0
 %define DBG_MODE  0x0
 %define DELAY_CNT 0x3fff
@@ -18,8 +18,8 @@ start:
 
     cli
     call read_pit
+    call set_pit
     call install_08h_isr
-    ; call set_pit
     sti
     int 0x08
 
@@ -57,15 +57,14 @@ summary:
     call newline
 
     call read_pit
-    call read_pit
-
+    call reset_pit
     ret
 
 
 
 set_pit:
     ; 設定 CH0 為 Mode 2，binary，LSB+MSB
-    mov al, 34h        ; 控制字 0x34
+    mov al, 36h        ; 控制字 0x36
     out 43h, al
 
     ; 設定初值 (以 0x4C4E ≈ 65536/18.2Hz 為例，55ms 中斷一次)
@@ -99,7 +98,8 @@ read_pit:
     mov dx, str_pit_status
     call print
  
-    mov al, 0xC2              ; 11 00 0 001 0  → C0, latch status+count
+    mov al, 0xC2              ; 11 00 001 0  → C0, latch status+count
+    out PIT_CMD, al
     in  al, PIT_CH0           ; status byte
 
     call print_hex8
@@ -296,7 +296,7 @@ test_isr:
 
  
     call set_smm
-    call .EOI
+    ; call .EOI
     jmp .done
 
 .from_ext2:
@@ -388,9 +388,9 @@ set_smm:
     call read_pic
 
     ; mask IRQ0
-    in al, PIC1_DAT
-    or al, 0x1
-    out PIC1_DAT, al
+    ; in al, PIC1_DAT
+    ; or al, 0x1
+    ; out PIC1_DAT, al
 
 
     ; OCW3：bit3=1 表示這是 OCW3
