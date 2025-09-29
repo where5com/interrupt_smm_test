@@ -30,8 +30,13 @@ nasm -f bin ${main_src} -o ${main_exe} -l ${main_lsm}
 if [ -z "$flag" ]; then
     echo "debug mode flag: $flag"
     dosbox-x -c 'MOUNT C .' -c 'C:' -c "debugbox ${main_exe}"
-else
+elif [ "$flag" -eq 1 ]; then
     echo "run mode flag: $flag"
     dosbox-x -c 'MOUNT C .' -c 'C:' -c "${main_exe} > ${main_log}" -c "exit"
     cat ${main_log}
+else
+    echo "debug mode flag: $flag"
+    dosbox-x -console -c 'MOUNT C .' -c 'C:' -c "debugbox ${main_exe}"
+    cat ${main_log}
+
 fi
