@@ -4,6 +4,13 @@
 bits 16
 org 100h
 
+%define CLEAR_IR0 1
+%define SMM_FLAG  0x1
+%define INT_LIMIT 0x5
+%define DBG_MODE  0x0
+%define DELAY_CNT 0x3fff
+%define SFNM_FLAG 0x0
+
 %define PIC0_CMD  0x20
 %define PIC0_DAT  0x21
 %define PIC1_CMD  0xa0
@@ -11,12 +18,6 @@ org 100h
 %define PIT_CH0   0x40
 %define PIT_CMD   0x43
 %define PIT_FREQ  0xffff
-%define INT_LIMIT 0x5
-%define SMM_FLAG  0x1
-%define SFNM_FLAG 0x0
-%define DBG_MODE  0x0
-%define DELAY_CNT 0x3fff
-%define smm_clear_ir0 1
 start:
 
     cli
@@ -24,9 +25,11 @@ start:
     call read_pit
     call set_pit
     call install_08h_isr
+    call set_smm
     call unmask_irq0
     sti
     int 0x08
+    ; call delay
 
     cli
     call mask_irq0
@@ -84,7 +87,7 @@ set_pit:
     ret
 reset_pit:
     ; 設定 CH0 為 Mode 2，binary，LSB+MSB
-    mov al, 34h        ; 控制字 0x34
+    mov al, 36h        ; 控制字 0x36
     out 43h, al
 
     ; 設定初值 (以 0x4C4E ≈ 65536/18.2Hz 為例，55ms 中斷一次)
@@ -347,8 +350,7 @@ test_isr:
     mov byte [sti_flag], 1
 
  
-    call set_smm
-%if smm_clear_ir0
+%if CLEAR_IR0
     call .EOI
 %endif
     jmp .done
@@ -402,7 +404,7 @@ test_isr:
 
 .passed:
     mov cx, DELAY_CNT
-    call .delay
+    call delay
 
 
     mov dx, msg_int_cnt
@@ -428,20 +430,20 @@ test_isr:
     pop eax
     sti
     iret
-
-.delay:
-    cli
-    push cx
-    call print_int_cnt
-    pop cx
-    sti
-    loop .delay
-    ret
 .EOI:
     ; specific EOI 給 IRQ0：OCW2 = 0x60 | IRQ#
     mov  al, 0x60      ; IRQ#=0 → 0x60
     out  PIC0_CMD, al
 
+    ret
+
+delay:
+%if DBG_MODE
+    push cx
+    call print_int_cnt
+    pop cx
+%endif
+    loop delay
     ret
 
 mask_irq0:
@@ -473,11 +475,10 @@ unmask_irq0:
     ret
 
 set_smm:
-    mov al,SMM_FLAG
-    cmp al, 0x0
-    jne .next
+
+%if SMM_FLAG=0
     ret
-.next:
+%endif
     mov dx, msg_set_smm
     call print
     call newline
@@ -498,13 +499,10 @@ set_smm:
     ret
 
 reset_smm:
-    ; 退出 SMM（回到 normal mask mode）：ESMM=1, SMM=0
-    mov al,SMM_FLAG
-    cmp al, 0x0
-    jne .next
+%if SMM_FLAG = 0
     ret
-.next:
-
+%endif
+    ; 退出 SMM（回到 normal mask mode）：ESMM=1, SMM=0
     call read_pic0
 
     in al, PIC0_DAT
